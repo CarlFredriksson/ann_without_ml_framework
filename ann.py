@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 class ANN:
     def __init__(self, input_size, hidden_size):
@@ -11,7 +12,7 @@ class ANN:
 
     def propagate(self, X, Y):
         loss, forward_cache = ann.propagate_forward(X, Y)
-        gradient = ann.propagate_backward(forward_cache, Y)
+        gradient = ann.propagate_backward(X, Y, forward_cache)
         return loss, forward_cache, gradient
     
     def propagate_forward(self, X, Y):
@@ -21,12 +22,17 @@ class ANN:
         Z2 = np.dot(A1, self.W2) + self.b2
         A2 = Z2
         loss = 1/(2*batch_size) * np.sum((Y - A2)**2)
-        forward_cache = [[Z1, A1], [Z2, A2]]
+        forward_cache = {
+            "Z1": Z1,
+            "A1": A1,
+            "Z2": Z2,
+            "A2": A2
+        }
         return loss, forward_cache
     
-    def propagate_backward(self, forward_cache, Y):
+    def propagate_backward(self, X, Y, forward_cache):
         batch_size = np.shape(Y)[0]
-        Z1, A1, Z2, A2 = forward_cache[0][0], forward_cache[0][1], forward_cache[1][0], forward_cache[1][1]
+        Z1, A1, Z2, A2 = forward_cache["Z1"], forward_cache["A1"], forward_cache["Z2"], forward_cache["A2"]
 
         # dA2 is short for dL/dA2 etc.
         dA2 = A2 - Y
@@ -39,7 +45,12 @@ class ANN:
         dW1 = (1/batch_size) * np.dot(X.T, dZ1)
         db1 = (1/batch_size) * np.sum(dZ1, axis=0)
 
-        partial_derivatives = [[dW1, db1], [dW2, db2]]
+        partial_derivatives = {
+            "dW1": dW1,
+            "db1": db1,
+            "dW2": dW2,
+            "db2": db2
+        }
 
         return partial_derivatives
     
@@ -94,44 +105,97 @@ class ANN:
                 self.b2[i][j] += epsilon
                 db2[i][j] = (loss1 - loss2) / (2 * epsilon)
 
-        partial_derivatives = [[dW1, db1], [dW2, db2]]
+        partial_derivatives = {
+            "dW1": dW1,
+            "db1": db1,
+            "dW2": dW2,
+            "db2": db2
+        }
 
         return partial_derivatives
 
+def generate_random_data():
+    X = np.expand_dims(np.linspace(0, 4, num=200), axis=1)
+    Y = X**2 - 2
+    noise = np.random.normal(0, 2, size=X.shape)
+    Y = Y + noise
+    Y = Y.astype("float32")
+    return X, Y
+
+def plot_data(X, Y, plot_path):
+    plt.scatter(X, Y, color="blue")
+    plt.grid()
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.savefig(plot_path, bbox_inches="tight")
+    plt.clf()
+
+def plot_results(X, Y, Y_predict, plot_path):
+    plt.scatter(X, Y, color="blue")
+    plt.plot(X, Y_predict, color="red")
+    plt.grid()
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.savefig(plot_path, bbox_inches="tight")
+    plt.clf()
+
 if __name__ == "__main__":
+    """
     X = np.ones((5, 3)) * np.array([[1], [2], [3], [4], [5]])
     Y = np.array([[0], [1], [0.5], [1], [0]])
     ann = ANN(3, 2)
     loss, forward_cache, partial_derivatives = ann.propagate(X, Y)
     print("A2:")
-    print(forward_cache[1][1])
+    print(forward_cache["A2"])
     print()
     print("loss:")
     print(loss)
     print()
     print("***Gradient from backprop***")
     print("dW1:")
-    print(partial_derivatives[0][0])
+    print(partial_derivatives["dW1"])
     print()
     print("db1:")
-    print(partial_derivatives[0][1])
+    print(partial_derivatives["db1"])
     print()
     print("dW2:")
-    print(partial_derivatives[1][0])
+    print(partial_derivatives["dW2"])
     print()
     print("db2:")
-    print(partial_derivatives[1][1])
+    print(partial_derivatives["db2"])
     print()
     partial_derivatives_approx = ann.compute_gradient_approximately(X, Y)
     print("***Approximate gradient for checking backprop***")
     print("dW1:")
-    print(partial_derivatives_approx[0][0])
+    print(partial_derivatives_approx["dW1"])
     print()
     print("db1:")
-    print(partial_derivatives_approx[0][1])
+    print(partial_derivatives_approx["db1"])
     print()
     print("dW2:")
-    print(partial_derivatives_approx[1][0])
+    print(partial_derivatives_approx["dW2"])
     print()
     print("db2:")
-    print(partial_derivatives_approx[1][1])
+    print(partial_derivatives_approx["db2"])
+    """
+    X_train, Y_train = generate_random_data()
+    X_val, Y_val = generate_random_data()
+    plot_data(X_train, Y_train, "output/data_train.png")
+    plot_data(X_val, Y_val, "output/data_val.png")
+
+    ann = ANN(1, 5)
+    learning_rate = 0.1
+    num_iterations = 10000
+    for i in range(num_iterations):
+        loss, forward_cache, partial_derivatives = ann.propagate(X_train, Y_train)
+        ann.W1 -= learning_rate * partial_derivatives["dW1"]
+        ann.b1 -= learning_rate * partial_derivatives["db1"]
+        ann.W2 -= learning_rate * partial_derivatives["dW2"]
+        ann.b2 -= learning_rate * partial_derivatives["db2"]
+        if i % 1000 == 0:
+            print("loss:", loss)
+
+    loss, forward_cache = ann.propagate_forward(X_train, Y_train)
+    plot_results(X_val, Y_val, forward_cache["A2"], "output/results_train.png")
+    loss, forward_cache = ann.propagate_forward(X_val, Y_val)
+    plot_results(X_val, Y_val, forward_cache["A2"], "output/results_val.png")
