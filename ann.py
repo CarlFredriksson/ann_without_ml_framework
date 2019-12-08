@@ -2,117 +2,111 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class ANN:
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, input_layer_size, hidden_layer_sizes):
         # Limited to 1 dimensional output for now
-        output_size = 1
-        self.W1 = np.random.randn(input_size, hidden_size) * 0.01
-        self.b1 = np.zeros((1, hidden_size))
-        self.W2 = np.random.randn(hidden_size, output_size) * 0.01
-        self.b2 = np.zeros((1, output_size))
+        output_layer_size = 1
+        if len(hidden_layer_sizes ) == 0:
+            self.W = [ np.random.randn(input_layer_size, output_layer_size) * 0.01 ]
+            self.b = [ np.zeros((1, output_layer_size)) ]
+        elif len(hidden_layer_sizes ) == 1:
+            self.W = [
+                np.random.randn(input_layer_size, hidden_layer_sizes[0]) * 0.01,
+                np.random.randn(hidden_layer_sizes[0], output_layer_size) * 0.01
+            ]
+            self.b = [
+                np.zeros((1, hidden_layer_sizes[0])),
+                np.zeros((1, output_layer_size))
+            ]
+        elif len(hidden_layer_sizes) == 2:
+            self.W = [
+                np.random.randn(input_layer_size, hidden_layer_sizes[0]) * 0.01,
+                np.random.randn(hidden_layer_sizes[0], hidden_layer_sizes[1]) * 0.01,
+                np.random.randn(hidden_layer_sizes[1], output_layer_size) * 0.01
+            ]
+            self.b = [
+                np.zeros((1, hidden_layer_sizes[0])),
+                np.zeros((1, hidden_layer_sizes[1])),
+                np.zeros((1, output_layer_size))
+            ]
 
     def propagate(self, X, Y):
-        loss, forward_cache = ann.propagate_forward(X, Y)
-        gradient = ann.propagate_backward(X, Y, forward_cache)
-        return loss, forward_cache, gradient
-    
+        loss, Z_cache, A_cache = ann.propagate_forward(X, Y)
+        dW, db = ann.propagate_backward(X, Y, Z_cache, A_cache)
+        return loss, A_cache[-1], dW, db
+
     def propagate_forward(self, X, Y):
         batch_size = np.shape(X)[0]
-        Z1 = np.dot(X, self.W1) + self.b1
-        A1 = np.maximum(0, Z1)
-        Z2 = np.dot(A1, self.W2) + self.b2
-        A2 = Z2
-        loss = 1/(2*batch_size) * np.sum((Y - A2)**2)
-        forward_cache = {
-            "Z1": Z1,
-            "A1": A1,
-            "Z2": Z2,
-            "A2": A2
-        }
-        return loss, forward_cache
-    
-    def propagate_backward(self, X, Y, forward_cache):
-        batch_size = np.shape(Y)[0]
-        Z1, A1, Z2, A2 = forward_cache["Z1"], forward_cache["A1"], forward_cache["Z2"], forward_cache["A2"]
+        Z_cache = [None] * (len(self.W))
+        A_cache = [None] * (len(self.W))
 
-        # dA2 is short for dL/dA2 etc.
-        dA2 = A2 - Y
-        dZ2 = dA2
-        dW2 = (1/batch_size) * np.dot(A1.T, dZ2)
-        db2 = (1/batch_size) * np.sum(dZ2, axis=0)
+        A_prev = X
+        for i in range(len(self.W)):
+            Z = np.dot(A_prev, self.W[i]) + self.b[i]
+            A = Z
+            # If not at the output layer, apply relu
+            if i < (len(self.W) - 1):
+                A = np.maximum(0, Z)
+            Z_cache[i] = Z
+            A_cache[i] = A
+            A_prev = A
 
-        dA1 = np.dot(dZ2, self.W2.T)
-        dZ1 = np.multiply(dA1, self.relu_derivative(Z1))
-        dW1 = (1/batch_size) * np.dot(X.T, dZ1)
-        db1 = (1/batch_size) * np.sum(dZ1, axis=0)
+        loss = 1/(2*batch_size) * np.sum((Y - A_cache[-1])**2)
 
-        partial_derivatives = {
-            "dW1": dW1,
-            "db1": db1,
-            "dW2": dW2,
-            "db2": db2
-        }
+        return loss, Z_cache, A_cache
 
-        return partial_derivatives
-    
+    def propagate_backward(self, X, Y, Z_cache, A_cache):
+        batch_size = np.shape(X)[0]
+        dW = [None] * (len(self.W))
+        db = [None] * (len(self.b))
+
+        # dA is short for dL/dA etc.
+        dA = A_cache[-1] - Y
+        dZ = dA
+        for i in reversed(range(1, len(A_cache))):
+            A = A_cache[i-1]
+            dW[i] = (1/batch_size) * np.dot(A.T, dZ)
+            db[i] = (1/batch_size) * np.sum(dZ, axis=0)
+            dA = np.dot(dZ, self.W[i].T)
+            dZ = np.multiply(dA, self.relu_derivative(Z_cache[i-1]))
+        dW[0] = (1/batch_size) * np.dot(X.T, dZ)
+        db[0] = (1/batch_size) * np.sum(dZ, axis=0)
+
+        return dW, db
+
     def relu_derivative(self, x):
         return (x > 0) * 1
-    
+
     def compute_gradient_approximately(self, X, Y):
         """This function is used for checking if backpropagation is properly implemented."""
         epsilon = 10e-4
 
-        # Approximate dW1
-        dW1 = np.zeros(np.shape(self.W1))
-        for i in range(np.shape(dW1)[0]):
-            for j in range(np.shape(dW1)[1]):
-                self.W1[i][j] += epsilon
-                loss1, _ = ann.propagate_forward(X, Y)
-                self.W1[i][j] -= 2 * epsilon
-                loss2, _ = ann.propagate_forward(X, Y)
-                self.W1[i][j] += epsilon
-                dW1[i][j] = (loss1 - loss2) / (2 * epsilon)
+        # Approximate weight derivatives
+        dW = [None] * len(self.W)
+        for i in range(len(self.W)):
+            dW[i] = np.zeros(np.shape(self.W[i]))
+            for j in range(np.shape(self.W[i])[0]):
+                for k in range(np.shape(self.W[i])[1]):
+                    self.W[i][j][k] += epsilon
+                    loss1, _, _ = ann.propagate_forward(X, Y)
+                    self.W[i][j][k] -= 2 * epsilon
+                    loss2, _, _ = ann.propagate_forward(X, Y)
+                    self.W[i][j][k] += epsilon
+                    dW[i][j][k] = (loss1 - loss2) / (2 * epsilon)
 
-        # Approximate db1
-        db1 = np.zeros(np.shape(self.b1))
-        for i in range(np.shape(db1)[0]):
-            for j in range(np.shape(db1)[1]):
-                self.b1[i][j] += epsilon
-                loss1, _ = ann.propagate_forward(X, Y)
-                self.b1[i][j] -= 2 * epsilon
-                loss2, _ = ann.propagate_forward(X, Y)
-                self.b1[i][j] += epsilon
-                db1[i][j] = (loss1 - loss2) / (2 * epsilon)
+        # Approximate bias derivatives
+        db = [None] * len(self.b)
+        for i in range(len(self.b)):
+            db[i] = np.zeros(np.shape(self.b[i]))
+            for j in range(np.shape(self.b[i])[0]):
+                for k in range(np.shape(self.b[i])[1]):
+                    self.b[i][j][k] += epsilon
+                    loss1, _, _ = ann.propagate_forward(X, Y)
+                    self.b[i][j][k] -= 2 * epsilon
+                    loss2, _, _ = ann.propagate_forward(X, Y)
+                    self.b[i][j][k] += epsilon
+                    db[i][j][k] = (loss1 - loss2) / (2 * epsilon)
 
-        # Approximate dW2
-        dW2 = np.zeros(np.shape(self.W2))
-        for i in range(np.shape(dW2)[0]):
-            for j in range(np.shape(dW2)[1]):
-                self.W2[i][j] += epsilon
-                loss1, _ = ann.propagate_forward(X, Y)
-                self.W2[i][j] -= 2 * epsilon
-                loss2, _ = ann.propagate_forward(X, Y)
-                self.W2[i][j] += epsilon
-                dW2[i][j] = (loss1 - loss2) / (2 * epsilon)
-
-        # Approximate db2
-        db2 = np.zeros(np.shape(self.b2))
-        for i in range(np.shape(db2)[0]):
-            for j in range(np.shape(db2)[1]):
-                self.b2[i][j] += epsilon
-                loss1, _ = ann.propagate_forward(X, Y)
-                self.b2[i][j] -= 2 * epsilon
-                loss2, _ = ann.propagate_forward(X, Y)
-                self.b2[i][j] += epsilon
-                db2[i][j] = (loss1 - loss2) / (2 * epsilon)
-
-        partial_derivatives = {
-            "dW1": dW1,
-            "db1": db1,
-            "dW2": dW2,
-            "db2": db2
-        }
-
-        return partial_derivatives
+        return dW, db
 
 def generate_random_data():
     X = np.expand_dims(np.linspace(0, 4, num=200), axis=1)
@@ -141,61 +135,44 @@ def plot_results(X, Y, Y_predict, plot_path):
 
 if __name__ == "__main__":
     """
-    X = np.ones((5, 3)) * np.array([[1], [2], [3], [4], [5]])
+    #np.random.seed(3)
+    X = np.ones((5, 2)) * np.array([[1], [2], [3], [4], [5]])
     Y = np.array([[0], [1], [0.5], [1], [0]])
-    ann = ANN(3, 2)
-    loss, forward_cache, partial_derivatives = ann.propagate(X, Y)
-    print("A2:")
-    print(forward_cache["A2"])
-    print()
-    print("loss:")
-    print(loss)
-    print()
+    ann = ANN(2, [3, 3])
+    loss, predictions, dW, db = ann.propagate(X, Y)
     print("***Gradient from backprop***")
-    print("dW1:")
-    print(partial_derivatives["dW1"])
+    print("dW:")
+    [print(d) for d in dW]
     print()
-    print("db1:")
-    print(partial_derivatives["db1"])
+    print("db:")
+    [print(d) for d in db]
     print()
-    print("dW2:")
-    print(partial_derivatives["dW2"])
-    print()
-    print("db2:")
-    print(partial_derivatives["db2"])
-    print()
-    partial_derivatives_approx = ann.compute_gradient_approximately(X, Y)
+    dW_approx, db_approx = ann.compute_gradient_approximately(X, Y)
     print("***Approximate gradient for checking backprop***")
-    print("dW1:")
-    print(partial_derivatives_approx["dW1"])
+    print("dW_approx:")
+    [print(d) for d in dW_approx]
     print()
-    print("db1:")
-    print(partial_derivatives_approx["db1"])
+    print("db_approx:")
+    [print(d) for d in db]
     print()
-    print("dW2:")
-    print(partial_derivatives_approx["dW2"])
-    print()
-    print("db2:")
-    print(partial_derivatives_approx["db2"])
     """
     X_train, Y_train = generate_random_data()
     X_val, Y_val = generate_random_data()
     plot_data(X_train, Y_train, "output/data_train.png")
     plot_data(X_val, Y_val, "output/data_val.png")
 
-    ann = ANN(1, 5)
-    learning_rate = 0.1
+    ann = ANN(1, [5, 5])
+    learning_rate = 0.01
     num_iterations = 10000
     for i in range(num_iterations):
-        loss, forward_cache, partial_derivatives = ann.propagate(X_train, Y_train)
-        ann.W1 -= learning_rate * partial_derivatives["dW1"]
-        ann.b1 -= learning_rate * partial_derivatives["db1"]
-        ann.W2 -= learning_rate * partial_derivatives["dW2"]
-        ann.b2 -= learning_rate * partial_derivatives["db2"]
+        loss, predictions, dW, db = ann.propagate(X_train, Y_train)
+        for j in range(len(ann.W)):
+            ann.W[j] -= learning_rate * dW[j]
+            ann.b[j] -= learning_rate * db[j]
         if i % 1000 == 0:
             print("loss:", loss)
 
-    loss, forward_cache = ann.propagate_forward(X_train, Y_train)
-    plot_results(X_val, Y_val, forward_cache["A2"], "output/results_train.png")
-    loss, forward_cache = ann.propagate_forward(X_val, Y_val)
-    plot_results(X_val, Y_val, forward_cache["A2"], "output/results_val.png")
+    loss, Z_cache, A_cache = ann.propagate_forward(X_train, Y_train)
+    plot_results(X_val, Y_val, A_cache[-1], "output/results_train.png")
+    loss, Z_cache, A_cache = ann.propagate_forward(X_val, Y_val)
+    plot_results(X_val, Y_val, A_cache[-1], "output/results_val.png")
