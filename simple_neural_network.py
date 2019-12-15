@@ -14,9 +14,9 @@ class SimpleNeuralNetwork:
                 self.add_layer(hidden_layer_sizes[i-1], hidden_layer_sizes[i])
             self.add_layer(hidden_layer_sizes[-1], output_layer_size)
 
-    def add_layer(self, from_size, to_size):
-        self.W.append(np.random.randn(from_size, to_size) * 0.01)
-        self.b.append(np.zeros((1, to_size)))
+    def add_layer(self, previous_layer_size, layer_size):
+        self.W.append(np.random.randn(previous_layer_size, layer_size) * 0.01)
+        self.b.append(np.zeros((1, layer_size)))
 
     def propagate(self, X, Y):
         loss, Z_cache, A_cache = self.propagate_forward(X, Y)
