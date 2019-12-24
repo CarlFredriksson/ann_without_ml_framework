@@ -1,6 +1,5 @@
 import numpy as np
 from simple_neural_network import SimpleNeuralNetwork
-import utils
 
 if __name__ == "__main__":
     X = np.expand_dims(np.arange(10), axis=1)

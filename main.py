@@ -1,4 +1,3 @@
-import numpy as np
 from simple_neural_network import SimpleNeuralNetwork
 import utils
 
