@@ -3,10 +3,10 @@ from simple_neural_network import SimpleNeuralNetwork
 import utils
 
 if __name__ == "__main__":
-    X, Y = utils.generate_random_data()
-    utils.plot_data(X, Y, "output/data.png")
+    X = np.expand_dims(np.arange(10), axis=1)
+    Y = np.array([[i, i+1] for i in range(10)]) * 2
 
-    neural_network = SimpleNeuralNetwork(1, [10, 10], 1)
+    neural_network = SimpleNeuralNetwork(1, [20, 20], 2)
     learning_rate = 0.01
     num_iterations = 10000
     for i in range(num_iterations):
@@ -16,6 +16,3 @@ if __name__ == "__main__":
             neural_network.b[j] -= learning_rate * db[j]
         if i % 1000 == 0:
             print("loss:", loss)
-
-    loss, Z_cache, A_cache = neural_network.propagate_forward(X, Y)
-    utils.plot_results(X, Y, A_cache[-1], "output/results.png")

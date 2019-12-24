@@ -1,9 +1,7 @@
 import numpy as np
 
 class SimpleNeuralNetwork:
-    def __init__(self, input_layer_size, hidden_layer_sizes):
-        # Limited to 1 dimensional output for now
-        output_layer_size = 1
+    def __init__(self, input_layer_size, hidden_layer_sizes, output_layer_size):
         self.W = []
         self.b = []
         if len(hidden_layer_sizes) == 0:
